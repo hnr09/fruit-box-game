@@ -53,6 +53,7 @@ canvas { display:block; touch-action:none; }
 <div id="controls">
   <button class="ctrl-btn primary" id="newBtn">새 게임</button>
   <button class="ctrl-btn mute" id="muteBtn">🔊</button>
+  <button class="ctrl-btn mute" id="hiddenBtn" title="???">🎵</button>
   <div id="timerBar"><div id="timerFill"></div></div>
   <div id="timerLabel">120</div>
   <button class="ctrl-btn" id="rankBtn">🏆 랭킹</button>
@@ -111,13 +112,38 @@ window.dispatchEvent(new Event('firebaseReady'));
 <script>
 // BGM
 const BGM_URL='https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EC%82%AC%EA%B3%BC%EA%B2%8C%EC%9E%84%20%EB%B8%8C%EA%B8%88_%5Bcut_21sec%5D.mp3';
+const HIDDEN_BGM_URL='https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EA%B7%B8%EB%93%A4%EC%9D%98_%EB%B8%8C%EA%B7%B8.mp3';
+let currentBGM = 'normal'; // 'normal' or 'hidden'
 const audio=new Audio(BGM_URL);
 audio.loop=true; audio.volume=0.55;
 let muted=false;
+
 document.getElementById('muteBtn').addEventListener('click',()=>{
   muted=!muted; audio.muted=muted;
   document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';
 });
+
+document.getElementById('hiddenBtn').addEventListener('click',()=>{
+  const wasPlaying=gameActive;
+  if(currentBGM==='normal'){
+    currentBGM='hidden';
+    audio.pause();
+    audio.src=HIDDEN_BGM_URL;
+    audio.load();
+    document.getElementById('hiddenBtn').textContent='🍎';
+    document.getElementById('hiddenBtn').title='히든 브금 ON';
+    if(wasPlaying) audio.play().catch(()=>{});
+  } else {
+    currentBGM='normal';
+    audio.pause();
+    audio.src=BGM_URL;
+    audio.load();
+    document.getElementById('hiddenBtn').textContent='🎵';
+    document.getElementById('hiddenBtn').title='???';
+    if(wasPlaying) audio.play().catch(()=>{});
+  }
+});
+
 function playBGM(){ audio.currentTime=0; audio.play().catch(()=>{}); }
 function stopBGM(){ audio.pause(); audio.currentTime=0; }
 
