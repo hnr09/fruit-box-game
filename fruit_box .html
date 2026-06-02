@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🍎 사과 상자 게임</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:none; user-select:none; }
+body { background:#1a2e1a; font-family:'Segoe UI', Arial, sans-serif; display:flex; flex-direction:column; align-items:center; height:100vh; overflow:hidden; }
+
+#header { width:100%; padding:8px 14px 6px; display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.4); flex-shrink:0; }
+#header .title { color:#f5c842; font-size:17px; font-weight:bold; }
+#scoreBox { color:#fff; font-size:14px; }
+#scoreBox span { color:#f5c842; font-weight:bold; font-size:17px; }
+
+#controls { display:flex; gap:8px; align-items:center; padding:5px 12px; background:rgba(0,0,0,0.2); width:100%; flex-shrink:0; }
+.ctrl-btn { padding:5px 12px; border-radius:20px; border:none; cursor:pointer; font-size:12px; font-weight:bold; background:rgba(255,255,255,0.15); color:#fff; touch-action:manipulation; white-space:nowrap; }
+.ctrl-btn:active { opacity:0.7; }
+.ctrl-btn.primary { background:#c0392b; color:#fff; }
+.ctrl-btn.mute { font-size:16px; padding:4px 10px; background:rgba(255,255,255,0.1); }
+#timerBar { flex:1; height:8px; background:rgba(255,255,255,0.15); border-radius:4px; overflow:hidden; }
+#timerFill { height:100%; background:#f5c842; border-radius:4px; transition:width 1s linear; width:100%; }
+#timerLabel { color:#f5c842; font-size:13px; font-weight:bold; min-width:28px; text-align:right; }
+
+#gameWrap { position:relative; flex:1; display:flex; align-items:center; justify-content:center; width:100%; overflow:hidden; min-height:0; }
+canvas { display:block; touch-action:none; }
+
+#overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,25,10,0.92); color:#fff; text-align:center; gap:12px; z-index:20; overflow-y:auto; padding:16px 0; }
+#overlay h2 { font-size:28px; color:#f5c842; }
+#overlay p { font-size:14px; color:#ccc; line-height:1.8; max-width:290px; }
+.mbtn { padding:12px 34px; border-radius:40px; border:none; cursor:pointer; font-size:15px; font-weight:bold; background:#c0392b; color:#fff; touch-action:manipulation; }
+.mbtn:active { transform:scale(0.96); }
+
+#nameInputWrap input { padding:8px 16px; border-radius:20px; border:2px solid #f5c842; background:rgba(255,255,255,0.1); color:#fff; font-size:15px; text-align:center; outline:none; width:200px; touch-action:auto; }
+#nameInputWrap input::placeholder { color:#888; }
+
+#rankingWrap { width:100%; max-width:300px; padding:0 16px; }
+#rankingWrap h3 { color:#f5c842; font-size:14px; margin-bottom:6px; }
+#rankList { list-style:none; width:100%; }
+#rankList li { display:flex; justify-content:space-between; padding:5px 10px; background:rgba(255,255,255,0.06); border-radius:8px; margin-bottom:4px; font-size:13px; color:#ddd; }
+#rankList li.me { background:rgba(245,200,66,0.18); color:#f5c842; font-weight:bold; }
+.rank-pos { color:#888; min-width:22px; }
+.rank-name { flex:1; text-align:left; padding:0 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rank-score { color:#f5c842; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="title">🍎 사과 상자</div>
+  <div id="scoreBox">점수: <span id="scoreNum">0</span></div>
+</div>
+<div id="controls">
+  <button class="ctrl-btn primary" id="newBtn">새 게임</button>
+  <button class="ctrl-btn mute" id="muteBtn">🔊</button>
+  <button class="ctrl-btn mute" id="hiddenBtn" title="???">🎵</button>
+  <div id="timerBar"><div id="timerFill"></div></div>
+  <div id="timerLabel">120</div>
+  <button class="ctrl-btn" id="rankBtn">🏆 랭킹</button>
+</div>
+
+<div id="gameWrap">
+  <canvas id="c"></canvas>
+  <div id="overlay">
+    <h2>🍎 사과 상자</h2>
+    <p>드래그로 합이 <b>10</b>이 되는<br>사과들을 묶으세요!</p>
+    <div id="nameInputWrap">
+      <input type="text" id="playerName" placeholder="닉네임 입력" maxlength="10">
+    </div>
+    <button class="mbtn" id="startBtn">시작하기 ▶</button>
+    <div id="rankingWrap">
+      <h3>🏆 TOP 10</h3>
+      <ul id="rankList"><li style="color:#666;text-align:center;display:block;padding:8px">불러오는 중...</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB6-YRt9bJH8PFY9KGbzmXhB3RgPHip_RM",
+  authDomain: "applegame-63e6c.firebaseapp.com",
+  projectId: "applegame-63e6c",
+  storageBucket: "applegame-63e6c.firebasestorage.app",
+  messagingSenderId: "414071466150",
+  appId: "1:414071466150:web:be5191e3368cb2ea0aec67",
+  measurementId: "G-QCV2QEGDCQ"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.saveScore = async (name, score) => {
+  try { await addDoc(collection(db,'rankings'),{name,score,createdAt:serverTimestamp()}); }
+  catch(e){ console.warn('저장 실패:',e); }
+};
+window.loadRanking = async () => {
+  try {
+    const q=query(collection(db,'rankings'),orderBy('score','desc'),limit(10));
+    const snap=await getDocs(q);
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e){ console.warn('불러오기 실패:',e); return []; }
+};
+window.firebaseReady=true;
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<script>
+// BGM
+const BGM_URL='https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EC%82%AC%EA%B3%BC%EA%B2%8C%EC%9E%84%20%EB%B8%8C%EA%B8%88_%5Bcut_21sec%5D.mp3';
+const HIDDEN_BGM_URL='https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EA%B7%B8%EB%93%A4%EC%9D%98%20%EB%B8%8C%EA%B7%B8.mp3';
+let currentBGM = 'normal'; // 'normal' or 'hidden'
+const audio=new Audio(BGM_URL);
+audio.loop=true; audio.volume=0.55;
+let muted=false;
+
+document.getElementById('muteBtn').addEventListener('click',()=>{
+  muted=!muted; audio.muted=muted;
+  document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';
+});
+
+document.getElementById('hiddenBtn').addEventListener('click',()=>{
+  const wasPlaying=gameActive;
+  if(currentBGM==='normal'){
+    currentBGM='hidden';
+    audio.pause();
+    audio.src=HIDDEN_BGM_URL;
+    audio.load();
+    document.getElementById('hiddenBtn').textContent='🍎';
+    document.getElementById('hiddenBtn').title='히든 브금 ON';
+    if(wasPlaying) audio.play().catch(()=>{});
+  } else {
+    currentBGM='normal';
+    audio.pause();
+    audio.src=BGM_URL;
+    audio.load();
+    document.getElementById('hiddenBtn').textContent='🎵';
+    document.getElementById('hiddenBtn').title='???';
+    if(wasPlaying) audio.play().catch(()=>{});
+  }
+});
+
+function playBGM(){ audio.currentTime=0; audio.play().catch(()=>{}); }
+function stopBGM(){ audio.pause(); audio.currentTime=0; }
+
+// 고정 설정: 17열 x 10행
+const COLS=17, ROWS=10;
+let CELL;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const scoreNum=document.getElementById('scoreNum');
+const timerFill=document.getElementById('timerFill');
+const timerLabel=document.getElementById('timerLabel');
+const overlay=document.getElementById('overlay');
+
+let grid=[], score=0, timeLeft=120, totalTime=120;
+let gameActive=false, timerInterval=null;
+let selecting=false, selStart=null, selEnd=null, selRect=null;
+let pops=[], myName='', lastScore=0;
+
+function setupCanvas(){
+  const wrap=document.getElementById('gameWrap');
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  CELL=Math.min(Math.floor((W-4)/COLS), Math.floor((H-4)/ROWS), 56);
+  canvas.width=CELL*COLS; canvas.height=CELL*ROWS;
+}
+
+function newGame(){
+  const ni=document.getElementById('playerName');
+  myName=(ni?ni.value.trim():'')||'익명';
+  setupCanvas();
+  grid=[];
+  for(let r=0;r<ROWS;r++){grid[r]=[];for(let c=0;c<COLS;c++) grid[r][c]={val:1+Math.floor(Math.random()*9),alive:true};}
+  score=0; timeLeft=120; lastScore=0; pops=[];
+  selecting=false; selStart=null; selEnd=null; selRect=null;
+  scoreNum.textContent='0';
+  timerFill.style.transition='none'; timerFill.style.width='100%'; timerFill.style.background='#f5c842';
+  timerLabel.textContent='120';
+  gameActive=true;
+  overlay.style.display='none';
+  if(timerInterval) clearInterval(timerInterval);
+  setTimeout(()=>{ timerFill.style.transition='width 1s linear'; },50);
+  timerInterval=setInterval(tickTimer,1000);
+  playBGM();
+  requestAnimationFrame(loop);
+}
+
+function tickTimer(){
+  if(!gameActive) return;
+  timeLeft--;
+  timerFill.style.width=(timeLeft/totalTime*100)+'%';
+  timerFill.style.background=timeLeft<=20?'#e85':'#f5c842';
+  timerLabel.textContent=timeLeft;
+  if(timeLeft<=0) endGame();
+}
+
+async function endGame(){
+  gameActive=false; clearInterval(timerInterval); stopBGM();
+  lastScore=score;
+  if(window.saveScore&&myName) await window.saveScore(myName,score);
+  showEndOverlay();
+}
+
+async function showEndOverlay(){
+  overlay.style.display='flex';
+  const total=COLS*ROWS, alive=grid.flat().filter(c=>c.alive).length;
+  overlay.innerHTML=`
+    <h2>⏱️ 시간 종료!</h2>
+    <p>점수: <b style="color:#f5c842;font-size:1.4em">${lastScore}</b><br>
+    사과 ${total-alive}개 제거 / 총 ${total}개</p>
+    <div id="nameInputWrap">
+      <input type="text" id="playerName" placeholder="닉네임 입력" maxlength="10" value="${myName}" style="touch-action:auto;padding:8px 16px;border-radius:20px;border:2px solid #f5c842;background:rgba(255,255,255,0.1);color:#fff;font-size:15px;text-align:center;outline:none;width:200px;">
+    </div>
+    <button class="mbtn" id="startBtn">다시 하기 ▶</button>
+    <div id="rankingWrap" style="width:100%;max-width:300px;padding:0 16px;">
+      <h3 style="color:#f5c842;font-size:14px;margin-bottom:6px;">🏆 TOP 10</h3>
+      <ul id="rankList" style="list-style:none;width:100%;"><li style="color:#666;text-align:center;display:block;padding:8px">불러오는 중...</li></ul>
+    </div>
+  `;
+  document.getElementById('startBtn').onclick=newGame;
+  document.getElementById('startBtn').addEventListener('touchstart',e=>{e.preventDefault();newGame();});
+  await renderRanking();
+}
+
+async function renderRanking(){
+  const rl=document.getElementById('rankList'); if(!rl) return;
+  if(!window.loadRanking){ rl.innerHTML='<li style="color:#888;text-align:center;display:block;padding:8px">Firebase 미설정</li>'; return; }
+  const list=await window.loadRanking();
+  if(!list.length){ rl.innerHTML='<li style="color:#666;text-align:center;display:block;padding:8px">기록 없음</li>'; return; }
+  rl.innerHTML=list.map((item,i)=>`
+    <li style="display:flex;justify-content:space-between;padding:5px 10px;background:${item.name===myName&&item.score===lastScore?'rgba(245,200,66,0.18)':'rgba(255,255,255,0.06)'};border-radius:8px;margin-bottom:4px;font-size:13px;color:${item.name===myName&&item.score===lastScore?'#f5c842':'#ddd'};">
+      <span style="color:#888;min-width:22px;">${i+1}.</span>
+      <span style="flex:1;text-align:left;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</span>
+      <span style="color:#f5c842;font-weight:bold;">${item.score}</span>
+    </li>`).join('');
+}
+
+// Input
+function cellAt(cx,cy){
+  const col=Math.floor(cx/CELL),row=Math.floor(cy/CELL);
+  if(row<0||row>=ROWS||col<0||col>=COLS) return null;
+  return {row,col};
+}
+function getSelRect(a,b){
+  if(!a||!b) return null;
+  return {r1:Math.min(a.row,b.row),r2:Math.max(a.row,b.row),c1:Math.min(a.col,b.col),c2:Math.max(a.col,b.col)};
+}
+function sumInRect(rect){
+  let s=0;
+  for(let r=rect.r1;r<=rect.r2;r++) for(let c=rect.c1;c<=rect.c2;c++) if(grid[r][c].alive) s+=grid[r][c].val;
+  return s;
+}
+function removeRect(rect){
+  let n=0;
+  for(let r=rect.r1;r<=rect.r2;r++) for(let c=rect.c1;c<=rect.c2;c++){
+    if(grid[r][c].alive){grid[r][c].alive=false;pops.push({r,c,life:1.0});n++;}
+  }
+  return n;
+}
+function toGrid(e){
+  const rect=canvas.getBoundingClientRect();
+  let cx,cy;
+  if(e.touches){cx=e.touches[0].clientX-rect.left;cy=e.touches[0].clientY-rect.top;}
+  else{cx=e.clientX-rect.left;cy=e.clientY-rect.top;}
+  return cellAt(cx,cy);
+}
+function onDown(e){ if(!gameActive) return; e.preventDefault(); const cell=toGrid(e); if(!cell) return; selecting=true; selStart=cell; selEnd=cell; selRect=getSelRect(selStart,selEnd); }
+function onMove(e){ if(!selecting||!gameActive) return; e.preventDefault(); const cell=toGrid(e); if(!cell) return; selEnd=cell; selRect=getSelRect(selStart,selEnd); }
+function onUp(e){
+  if(!selecting||!gameActive) return; e.preventDefault();
+  if(selRect&&sumInRect(selRect)===10){
+    const n=removeRect(selRect);
+    score+=n;
+    scoreNum.textContent=score;
+    if(grid.flat().every(c=>!c.alive)){gameActive=false;clearInterval(timerInterval);stopBGM();setTimeout(showEndOverlay,300);}
+  }
+  selecting=false; selStart=null; selEnd=null; selRect=null;
+}
+canvas.addEventListener('touchstart',onDown,{passive:false});
+canvas.addEventListener('touchmove',onMove,{passive:false});
+canvas.addEventListener('touchend',onUp,{passive:false});
+canvas.addEventListener('mousedown',onDown);
+canvas.addEventListener('mousemove',onMove);
+canvas.addEventListener('mouseup',onUp);
+
+// Buttons
+document.getElementById('newBtn').onclick=newGame;
+document.getElementById('newBtn').addEventListener('touchstart',e=>{e.preventDefault();newGame();});
+document.getElementById('startBtn').onclick=newGame;
+document.getElementById('startBtn').addEventListener('touchstart',e=>{e.preventDefault();newGame();});
+document.getElementById('rankBtn').addEventListener('click',async()=>{ if(!gameActive) await renderRanking(); });
+
+// Draw — 모든 사과 빨간색 고정
+function getAppleColor(){ return '#e03020'; }
+
+function lighten(hex,amt){
+  let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,Math.round(r+255*amt))},${Math.min(255,Math.round(g+255*amt))},${Math.min(255,Math.round(b+255*amt))})`;
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#0f200f'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // 격자
+  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=0.5;
+  for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*CELL);ctx.lineTo(COLS*CELL,r*CELL);ctx.stroke();}
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*CELL,0);ctx.lineTo(c*CELL,ROWS*CELL);ctx.stroke();}
+
+  // 선택 영역
+  if(selRect){
+    const s=sumInRect(selRect),ok=s===10;
+    const sx=selRect.c1*CELL+2,sy=selRect.r1*CELL+2;
+    const sw=(selRect.c2-selRect.c1+1)*CELL-4,sh=(selRect.r2-selRect.r1+1)*CELL-4;
+    ctx.strokeStyle=ok?'#7dff7d':'rgba(255,220,60,0.9)'; ctx.lineWidth=ok?3:2;
+    ctx.fillStyle=ok?'rgba(100,255,100,0.10)':'rgba(255,220,60,0.07)';
+    ctx.beginPath(); ctx.roundRect(sx,sy,sw,sh,8); ctx.fill(); ctx.stroke();
+    // 합계 표시
+    ctx.font=`bold ${Math.max(11,CELL*0.3)}px Arial`;
+    ctx.textAlign='right'; ctx.textBaseline='top';
+    ctx.fillStyle=ok?'#7dff7d':'#ffcc33';
+    ctx.shadowColor='#000'; ctx.shadowBlur=4;
+    ctx.fillText(String(s),Math.min(selRect.c2*CELL+CELL-4,canvas.width-2),selRect.r1*CELL+4);
+    ctx.shadowBlur=0;
+  }
+
+  // 사과
+  const rad=CELL*0.38, fs=Math.max(9,Math.min(CELL*0.36,20));
+  for(let row=0;row<ROWS;row++) for(let col=0;col<COLS;col++){
+    const cell=grid[row][col]; if(!cell.alive) continue;
+    const cx=col*CELL+CELL/2, cy=row*CELL+CELL/2;
+    const color=getAppleColor();
+    const inSel=selRect&&row>=selRect.r1&&row<=selRect.r2&&col>=selRect.c1&&col<=selRect.c2;
+
+    // 사과 몸통
+    ctx.beginPath(); ctx.arc(cx,cy,rad,0,Math.PI*2);
+    ctx.fillStyle=inSel?lighten(color,0.28):color; ctx.fill();
+
+    // 하이라이트
+    ctx.beginPath(); ctx.arc(cx-rad*0.28,cy-rad*0.28,rad*0.30,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.20)'; ctx.fill();
+
+    // 꼭지
+    ctx.strokeStyle='#4a2800'; ctx.lineWidth=Math.max(1,CELL*0.05);
+    ctx.beginPath(); ctx.moveTo(cx,cy-rad); ctx.lineTo(cx+rad*0.2,cy-rad*1.3); ctx.stroke();
+
+    // 숫자
+    ctx.font=`bold ${fs}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fff'; ctx.shadowColor='rgba(0,0,0,0.7)'; ctx.shadowBlur=3;
+    ctx.fillText(cell.val,cx,cy+rad*0.06); ctx.shadowBlur=0;
+  }
+
+  // 팝 애니메이션
+  for(let i=pops.length-1;i>=0;i--){
+    const p=pops[i];
+    const cx=p.c*CELL+CELL/2, cy=p.r*CELL+CELL/2;
+    ctx.globalAlpha=p.life;
+    ctx.beginPath(); ctx.arc(cx,cy-(1-p.life)*CELL*0.5,rad*(1+(1-p.life)*0.9),0,Math.PI*2);
+    ctx.fillStyle='#ff8a80'; ctx.fill();
+    ctx.globalAlpha=1;
+    p.life-=0.07; if(p.life<0) pops.splice(i,1);
+  }
+}
+
+function loop(){ draw(); if(gameActive||pops.length>0) requestAnimationFrame(loop); }
+window.addEventListener('resize',()=>{ if(gameActive){setupCanvas();} });
+
+// Firebase 준비 시 랭킹 로드
+window.addEventListener('firebaseReady',async()=>{
+  const rl=document.getElementById('rankList'); if(!rl) return;
+  const list=await window.loadRanking();
+  if(!list.length){ rl.innerHTML='<li style="color:#666;text-align:center;display:block;padding:8px">기록 없음</li>'; return; }
+  rl.innerHTML=list.map((item,i)=>`
+    <li style="display:flex;justify-content:space-between;padding:5px 10px;background:rgba(255,255,255,0.06);border-radius:8px;margin-bottom:4px;font-size:13px;color:#ddd;">
+      <span style="color:#888;min-width:22px;">${i+1}.</span>
+      <span style="flex:1;text-align:left;padding:0 8px;">${item.name}</span>
+      <span style="color:#f5c842;font-weight:bold;">${item.score}</span>
+    </li>`).join('');
+});
+
+setupCanvas();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
