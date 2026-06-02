@@ -248,7 +248,7 @@ function onUp(e){
   if(!selecting||!gameActive) return; e.preventDefault();
   if(selRect&&sumInRect(selRect)===10){
     const n=removeRect(selRect);
-    score+=n*10+(n>1?(n-1)*5:0);
+    score+=n;
     scoreNum.textContent=score;
     if(grid.flat().every(c=>!c.alive)){gameActive=false;clearInterval(timerInterval);stopBGM();setTimeout(showEndOverlay,300);}
   }
@@ -269,22 +269,7 @@ document.getElementById('startBtn').addEventListener('touchstart',e=>{e.preventD
 document.getElementById('rankBtn').addEventListener('click',async()=>{ if(!gameActive) await renderRanking(); });
 
 // Draw — 모든 사과 빨간색 고정
-function getAppleColor(val){
-  // 숫자에 따라 빨간색 명도만 약간 변화 (모두 빨간 계열)
-  const shades=[
-    null,
-    '#e53935', // 1
-    '#e53935', // 2
-    '#c62828', // 3
-    '#ef5350', // 4
-    '#b71c1c', // 5
-    '#f44336', // 6
-    '#d32f2f', // 7
-    '#ff5252', // 8
-    '#c0392b', // 9
-  ];
-  return shades[val]||'#e53935';
-}
+function getAppleColor(){ return '#e03020'; }
 
 function lighten(hex,amt){
   let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
@@ -322,7 +307,7 @@ function draw(){
   for(let row=0;row<ROWS;row++) for(let col=0;col<COLS;col++){
     const cell=grid[row][col]; if(!cell.alive) continue;
     const cx=col*CELL+CELL/2, cy=row*CELL+CELL/2;
-    const color=getAppleColor(cell.val);
+    const color=getAppleColor();
     const inSel=selRect&&row>=selRect.r1&&row<=selRect.r2&&col>=selRect.c1&&col<=selRect.c2;
 
     // 사과 몸통
