@@ -381,7 +381,6 @@ function draw(){
     ctx.globalAlpha=1;
     p.life-=0.07; if(p.life<0) pops.splice(i,1);
   }
-}
 
   // 합계 숫자 — 사과 위에 표시
   if(selRect){
@@ -390,7 +389,6 @@ function draw(){
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle=ok?'#7dff7d':'#ffcc33';
     ctx.shadowColor='#000'; ctx.shadowBlur=6;
-    // 선택 영역 중앙에 표시
     const midX=(selRect.c1+selRect.c2+1)/2*CELL;
     const midY=(selRect.r1+selRect.r2+1)/2*CELL;
     ctx.fillText(String(s), midX, midY);
