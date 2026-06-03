@@ -356,14 +356,16 @@ function draw() {
     p.life -= 0.07; if (p.life < 0) pops.splice(i, 1);
   }
 
-  // 합계 숫자 — 사과 위에 표시
+  // 합계 숫자 — 선택 영역 오른쪽 위에 작게 표시
   if (selRect) {
     const s = sumInRect(selRect), ok = s === 10;
-    ctx.font = `bold ${Math.max(13, CELL*0.38)}px Arial`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.max(11, CELL*0.28)}px Arial`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     ctx.fillStyle = ok ? '#7dff7d' : '#ffcc33';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 6;
-    ctx.fillText(String(s), (selRect.c1+selRect.c2+1)/2*CELL, (selRect.r1+selRect.r2+1)/2*CELL);
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const tx = Math.min(selRect.c2*CELL+CELL-4, canvas.width-2);
+    const ty = selRect.r1*CELL+4;
+    ctx.fillText(String(s), tx, ty);
     ctx.shadowBlur = 0;
   }
 }
