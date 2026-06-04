@@ -75,7 +75,6 @@ canvas{display:block;touch-action:none;}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-// 🛡️ 보안 세션 연동을 위한 전용 인증 & App Check 팩 로드
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
 
@@ -92,47 +91,44 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// 🛡️ 구글 reCAPTCHA v3 연동 토큰 발행 엔진 가동
+// 🛡️ 보낸주신 reCAPTCHA 사이트 키가 완벽하게 적용되었습니다.
 const appCheck = initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider('구글에서_발급받은_reCAPTCHA_사이트_키_여기에_입력'),
+  provider: new ReCaptchaV3Provider('6LeSMwwtAAAAADTC2_krdnSYFJSl40bG2LWyyd0U'),
   isTokenAutoRefreshEnabled: true
 });
 
-// 백그라운드 안전 통신 터널 개통 (익명 로그인)
 signInAnonymously(auth)
   .then(() => {
-    console.log("보안 서명 완료. 고유 세션 ID 생성 완료.");
+    console.log("익명 로그인 및 보안 세션 연결 성공!");
     window.firebaseReady = true;
     window.dispatchEvent(new Event('firebaseReady'));
   })
-  .catch((e) => {
-    console.error("보안 세션 확보 실패:", e);
+  .catch((error) => {
+    console.error("로그인 실패:", error);
   });
 
 window.saveScore = async (name, score) => {
-  // 🚫 스크립트 강제 조작 차단 (170점 점수 한계선 1차 검증)
   if (score > 170) {
-    console.warn('허용 범위를 벗어난 점수입니다.');
+    console.warn('비정상적인 점수 감지');
     return;
   }
-
+  
   const user = auth.currentUser;
   if (!user) {
-    console.warn('사용자 인증 정보 확인 불가');
+    console.warn('인증 정보가 없습니다.');
     return;
   }
 
   try { 
-    // 전송 시 App Check 토큰이 네트워크 패킷 헤더에 자동으로 동봉되어 Firestore로 넘어갑니다.
     await addDoc(collection(db, 'rankings'), {
       userId: user.uid,
       name,
       score,
       createdAt: serverTimestamp()
     }); 
-    console.log("정상 등록 처리되었습니다.");
+    console.log("점수 등록 완료!");
   }
-  catch(e){ console.warn('등록 오류 발생:', e); }
+  catch(e){ console.warn('저장 실패:', e); }
 };
 
 window.loadRanking = async () => {
@@ -140,7 +136,7 @@ window.loadRanking = async () => {
     const q = query(collection(db, 'rankings'), orderBy('score', 'desc'), limit(10));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e){ console.warn('랭킹 로드 오류:', e); return []; }
+  } catch(e){ console.warn('불러오기 실패:', e); return []; }
 };
 </script>
 
@@ -397,7 +393,7 @@ function draw() {
     p.life -= 0.07; if (p.life < 0) pops.splice(i, 1);
   }
 
-  // 합계 숫자 — 선택 영역 오른쪽 위에 작게 표시
+  // 합계 숫자
   if (selRect) {
     const s = sumInRect(selRect), ok = s === 10;
     ctx.font = `bold ${Math.max(11, CELL*0.28)}px Arial`;
@@ -414,7 +410,6 @@ function draw() {
 function loop() { draw(); if (gameActive || pops.length > 0) requestAnimationFrame(loop); }
 window.addEventListener('resize', () => { if (gameActive) setupCanvas(); });
 
-// Firebase 준비 시 랭킹 로드
 window.addEventListener('firebaseReady', async () => {
   const rl = document.getElementById('rankList'); if (!rl) return;
   const list = await window.loadRanking();
