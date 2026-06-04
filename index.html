@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🍎 사과 상자 게임</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;}
+body{background:#1a2e1a;font-family:'Segoe UI',Arial,sans-serif;display:flex;flex-direction:column;align-items:center;height:100vh;overflow:hidden;}
+#header{width:100%;padding:8px 14px 6px;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.4);flex-shrink:0;}
+#header .title{color:#f5c842;font-size:17px;font-weight:bold;}
+#scoreBox{color:#fff;font-size:14px;}
+#scoreBox span{color:#f5c842;font-weight:bold;font-size:17px;}
+#controls{display:flex;gap:8px;align-items:center;padding:5px 12px;background:rgba(0,0,0,0.2);width:100%;flex-shrink:0;}
+.ctrl-btn{padding:5px 12px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:bold;background:rgba(255,255,255,0.15);color:#fff;touch-action:manipulation;white-space:nowrap;}
+.ctrl-btn:active{opacity:0.7;}
+.ctrl-btn.primary{background:#c0392b;color:#fff;}
+.ctrl-btn.mute{font-size:16px;padding:4px 10px;background:rgba(255,255,255,0.1);}
+#timerBar{flex:1;height:8px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;}
+#timerFill{height:100%;background:#f5c842;border-radius:4px;transition:width 1s linear;width:100%;}
+#timerLabel{color:#f5c842;font-size:13px;font-weight:bold;min-width:28px;text-align:right;}
+#gameWrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;width:100%;overflow:hidden;min-height:0;}
+canvas{display:block;touch-action:none;}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,25,10,0.92);color:#fff;text-align:center;gap:12px;z-index:20;overflow-y:auto;padding:16px 0;}
+#overlay h2{font-size:28px;color:#f5c842;}
+#overlay p{font-size:14px;color:#ccc;line-height:1.8;max-width:290px;}
+.mbtn{padding:12px 34px;border-radius:40px;border:none;cursor:pointer;font-size:15px;font-weight:bold;background:#c0392b;color:#fff;touch-action:manipulation;}
+.mbtn:active{transform:scale(0.96);}
+#nameInput{padding:8px 16px;border-radius:20px;border:2px solid #f5c842;background:rgba(255,255,255,0.1);color:#fff;font-size:15px;text-align:center;outline:none;width:200px;touch-action:auto;}
+#nameInput::placeholder{color:#888;}
+#rankingWrap{width:100%;max-width:300px;padding:0 16px;}
+#rankingWrap h3{color:#f5c842;font-size:14px;margin-bottom:6px;}
+#rankList{list-style:none;width:100%;}
+.rank-item{display:flex;justify-content:space-between;padding:5px 10px;background:rgba(255,255,255,0.06);border-radius:8px;margin-bottom:4px;font-size:13px;color:#ddd;}
+.rank-item.me{background:rgba(245,200,66,0.18);color:#f5c842;font-weight:bold;}
+.rank-pos{color:#888;min-width:22px;}
+.rank-name{flex:1;text-align:left;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rank-score{color:#f5c842;font-weight:bold;}
+#bgmPopup{display:none;position:fixed;z-index:999;background:#1a2e1a;border:1.5px solid rgba(255,255,255,0.2);border-radius:12px;padding:8px 0;min-width:160px;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+.bgm-opt{padding:10px 18px;cursor:pointer;color:#fff;font-size:13px;display:flex;align-items:center;gap:8px;touch-action:manipulation;}
+.bgm-opt:active{background:rgba(255,255,255,0.1);}
+</style>
+</head>
+<body>
+<div id="header">
+  <div class="title">🍎 사과 상자</div>
+  <div id="scoreBox">점수: <span id="scoreNum">0</span></div>
+</div>
+<div id="controls">
+  <button class="ctrl-btn primary" id="newBtn">새 게임</button>
+  <button class="ctrl-btn mute" id="muteBtn">🔊</button>
+  <div id="timerBar"><div id="timerFill"></div></div>
+  <div id="timerLabel">120</div>
+  <button class="ctrl-btn" id="rankBtn">🏆 랭킹</button>
+</div>
+<div id="bgmPopup">
+  <div class="bgm-opt" data-bgm="normal">🍎 사과게임 브금</div>
+  <div class="bgm-opt" data-bgm="hidden">🎵 히든 브금</div>
+</div>
+<div id="gameWrap">
+  <canvas id="c"></canvas>
+  <div id="overlay">
+    <h2>🍎 사과 상자</h2>
+    <p>드래그로 합이 <b>10</b>이 되는<br>사과들을 묶으세요!</p>
+    <input type="text" id="nameInput" placeholder="닉네임 입력" maxlength="10">
+    <button class="mbtn" id="startBtn">시작하기 ▶</button>
+    <div id="rankingWrap">
+      <h3>🏆 TOP 10</h3>
+      <ul id="rankList"><li style="color:#666;text-align:center;display:block;padding:8px">불러오는 중...</li></ul>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+// 🛡️ 보안 세션 연동을 위한 전용 인증 & App Check 팩 로드
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB6-YRt9bJH8PFY9KGbzmXhB3RgPHip_RM",
+  authDomain: "applegame-63e6c.firebaseapp.com",
+  projectId: "applegame-63e6c",
+  storageBucket: "applegame-63e6c.firebasestorage.app",
+  messagingSenderId: "414071466150",
+  appId: "1:414071466150:web:be5191e3368cb2ea0aec67",
+  measurementId: "G-QCV2QEGDCQ"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// 🛡️ 구글 reCAPTCHA v3 연동 토큰 발행 엔진 가동
+const appCheck = initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider('구글에서_발급받은_reCAPTCHA_사이트_키_여기에_입력'),
+  isTokenAutoRefreshEnabled: true
+});
+
+// 백그라운드 안전 통신 터널 개통 (익명 로그인)
+signInAnonymously(auth)
+  .then(() => {
+    console.log("보안 서명 완료. 고유 세션 ID 생성 완료.");
+    window.firebaseReady = true;
+    window.dispatchEvent(new Event('firebaseReady'));
+  })
+  .catch((e) => {
+    console.error("보안 세션 확보 실패:", e);
+  });
+
+window.saveScore = async (name, score) => {
+  // 🚫 스크립트 강제 조작 차단 (170점 점수 한계선 1차 검증)
+  if (score > 170) {
+    console.warn('허용 범위를 벗어난 점수입니다.');
+    return;
+  }
+
+  const user = auth.currentUser;
+  if (!user) {
+    console.warn('사용자 인증 정보 확인 불가');
+    return;
+  }
+
+  try { 
+    // 전송 시 App Check 토큰이 네트워크 패킷 헤더에 자동으로 동봉되어 Firestore로 넘어갑니다.
+    await addDoc(collection(db, 'rankings'), {
+      userId: user.uid,
+      name,
+      score,
+      createdAt: serverTimestamp()
+    }); 
+    console.log("정상 등록 처리되었습니다.");
+  }
+  catch(e){ console.warn('등록 오류 발생:', e); }
+};
+
+window.loadRanking = async () => {
+  try {
+    const q = query(collection(db, 'rankings'), orderBy('score', 'desc'), limit(10));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(e){ console.warn('랭킹 로드 오류:', e); return []; }
+};
+</script>
+
+<script>
+// ── BGM ──────────────────────────────────
+const BGM_URLS = {
+  normal: 'https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EC%82%AC%EA%B3%BC%EA%B2%8C%EC%9E%84%20%EB%B8%8C%EA%B8%88_%5Bcut_21sec%5D.mp3',
+  hidden: 'https://raw.githubusercontent.com/hnr09/fruit-box-game/main/%EA%B7%B8%EB%93%A4%EC%9D%98%20%EB%B8%8C%EA%B7%B8.mp3'
+};
+let currentBGM = 'normal';
+const audio = new Audio(BGM_URLS.normal);
+audio.loop = true; audio.volume = 0.55;
+
+const muteBtn = document.getElementById('muteBtn');
+const bgmPopup = document.getElementById('bgmPopup');
+
+muteBtn.addEventListener('click', () => {
+  if (bgmPopup.style.display === 'block') { bgmPopup.style.display = 'none'; return; }
+  const r = muteBtn.getBoundingClientRect();
+  bgmPopup.style.top = (r.bottom + 6) + 'px';
+  bgmPopup.style.left = r.left + 'px';
+  bgmPopup.querySelectorAll('.bgm-opt').forEach(el => {
+    el.style.background = el.dataset.bgm === currentBGM ? 'rgba(255,255,255,0.12)' : 'transparent';
+  });
+  bgmPopup.style.display = 'block';
+});
+
+bgmPopup.querySelectorAll('.bgm-opt').forEach(el => {
+  const pick = () => {
+    const sel = el.dataset.bgm;
+    bgmPopup.style.display = 'none';
+    if (sel === currentBGM) return;
+    currentBGM = sel;
+    const wasPlaying = gameActive;
+    audio.pause();
+    audio.src = BGM_URLS[sel];
+    audio.load();
+    if (wasPlaying) audio.play().catch(() => {});
+  };
+  el.addEventListener('click', pick);
+  el.addEventListener('touchstart', e => { e.preventDefault(); pick(); });
+});
+
+document.addEventListener('click', e => {
+  if (!bgmPopup.contains(e.target) && e.target !== muteBtn) bgmPopup.style.display = 'none';
+});
+
+function playBGM() { audio.currentTime = 0; audio.play().catch(() => {}); }
+function stopBGM() { audio.pause(); audio.currentTime = 0; }
+
+// ── Game ──────────────────────────────────
+const COLS = 17, ROWS = 10;
+let CELL;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const scoreNum = document.getElementById('scoreNum');
+const timerFillEl = document.getElementById('timerFill');
+const timerLabelEl = document.getElementById('timerLabel');
+const overlay = document.getElementById('overlay');
+
+let grid = [], score = 0, timeLeft = 120, totalTime = 120;
+let gameActive = false, timerInterval = null;
+let selecting = false, selStart = null, selEnd = null, selRect = null;
+let pops = [], myName = '', lastScore = 0;
+
+function setupCanvas() {
+  const wrap = document.getElementById('gameWrap');
+  CELL = Math.min(Math.floor((wrap.clientWidth - 4) / COLS), Math.floor((wrap.clientHeight - 4) / ROWS), 56);
+  canvas.width = CELL * COLS;
+  canvas.height = CELL * ROWS;
+}
+
+function newGame() {
+  myName = (document.getElementById('nameInput').value.trim()) || '익명';
+  setupCanvas();
+  grid = [];
+  for (let r = 0; r < ROWS; r++) {
+    grid[r] = [];
+    for (let c = 0; c < COLS; c++) grid[r][c] = { val: 1 + Math.floor(Math.random() * 9), alive: true };
+  }
+  score = 0; timeLeft = 120; lastScore = 0; pops = [];
+  selecting = false; selStart = null; selEnd = null; selRect = null;
+  scoreNum.textContent = '0';
+  timerFillEl.style.transition = 'none';
+  timerFillEl.style.width = '100%';
+  timerFillEl.style.background = '#f5c842';
+  timerLabelEl.textContent = '120';
+  gameActive = true;
+  overlay.style.display = 'none';
+  if (timerInterval) clearInterval(timerInterval);
+  setTimeout(() => { timerFillEl.style.transition = 'width 1s linear'; }, 50);
+  timerInterval = setInterval(tickTimer, 1000);
+  playBGM();
+  requestAnimationFrame(loop);
+}
+
+function tickTimer() {
+  if (!gameActive) return;
+  timeLeft--;
+  timerFillEl.style.width = (timeLeft / totalTime * 100) + '%';
+  timerFillEl.style.background = timeLeft <= 20 ? '#e85' : '#f5c842';
+  timerLabelEl.textContent = timeLeft;
+  if (timeLeft <= 0) endGame();
+}
+
+async function endGame() {
+  gameActive = false;
+  clearInterval(timerInterval);
+  stopBGM();
+  lastScore = score;
+  if (window.saveScore && myName) await window.saveScore(myName, score);
+  showEndOverlay();
+}
+
+async function showEndOverlay() {
+  const total = COLS * ROWS;
+  const alive = grid.flat().filter(c => c.alive).length;
+  overlay.innerHTML = `
+    <h2>⏱️ 시간 종료!</h2>
+    <p>점수: <b style="color:#f5c842;font-size:1.4em">${lastScore}</b><br>사과 ${total - alive}개 제거 / 총 ${total}개</p>
+    <input type="text" id="nameInput" placeholder="닉네임 입력" maxlength="10" value="${myName}"
+      style="padding:8px 16px;border-radius:20px;border:2px solid #f5c842;background:rgba(255,255,255,0.1);color:#fff;font-size:15px;text-align:center;outline:none;width:200px;touch-action:auto;">
+    <button class="mbtn" id="restartBtn">다시 하기 ▶</button>
+    <div id="rankingWrap" style="width:100%;max-width:300px;padding:0 16px;">
+      <h3 style="color:#f5c842;font-size:14px;margin-bottom:6px;">🏆 TOP 10</h3>
+      <ul id="rankList" style="list-style:none;width:100%;"><li style="color:#666;text-align:center;display:block;padding:8px">불러오는 중...</li></ul>
+    </div>
+  `;
+  overlay.style.display = 'flex';
+  const rb = document.getElementById('restartBtn');
+  rb.addEventListener('click', newGame);
+  rb.addEventListener('touchstart', e => { e.preventDefault(); newGame(); });
+  await renderRanking();
+}
+
+async function renderRanking() {
+  const rl = document.getElementById('rankList');
+  if (!rl) return;
+  if (!window.loadRanking) { rl.innerHTML = '<li style="color:#888;text-align:center;display:block;padding:8px">Firebase 미설정</li>'; return; }
+  const list = await window.loadRanking();
+  if (!list.length) { rl.innerHTML = '<li style="color:#666;text-align:center;display:block;padding:8px">기록 없음</li>'; return; }
+  rl.innerHTML = list.map((item, i) => `
+    <li class="rank-item ${item.name === myName && item.score === lastScore ? 'me' : ''}">
+      <span class="rank-pos">${i + 1}.</span>
+      <span class="rank-name">${item.name}</span>
+      <span class="rank-score">${item.score}</span>
+    </li>`).join('');
+}
+
+// ── Input ──────────────────────────────────
+function cellAt(cx, cy) {
+  const col = Math.floor(cx / CELL), row = Math.floor(cy / CELL);
+  if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return null;
+  return { row, col };
+}
+function getSelRect(a, b) {
+  if (!a || !b) return null;
+  return { r1: Math.min(a.row, b.row), r2: Math.max(a.row, b.row), c1: Math.min(a.col, b.col), c2: Math.max(a.col, b.col) };
+}
+function sumInRect(rect) {
+  let s = 0;
+  for (let r = rect.r1; r <= rect.r2; r++) for (let c = rect.c1; c <= rect.c2; c++) if (grid[r][c].alive) s += grid[r][c].val;
+  return s;
+}
+function removeRect(rect) {
+  let n = 0;
+  for (let r = rect.r1; r <= rect.r2; r++) for (let c = rect.c1; c <= rect.c2; c++) {
+    if (grid[r][c].alive) { grid[r][c].alive = false; pops.push({ r, c, life: 1.0 }); n++; }
+  }
+  return n;
+}
+function toGrid(e) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+  const cy = e.touches ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+  return cellAt(cx, cy);
+}
+function onDown(e) { if (!gameActive) return; e.preventDefault(); const cell = toGrid(e); if (!cell) return; selecting = true; selStart = cell; selEnd = cell; selRect = getSelRect(selStart, selEnd); }
+function onMove(e) { if (!selecting || !gameActive) return; e.preventDefault(); const cell = toGrid(e); if (!cell) return; selEnd = cell; selRect = getSelRect(selStart, selEnd); }
+function onUp(e) {
+  if (!selecting || !gameActive) return; e.preventDefault();
+  if (selRect && sumInRect(selRect) === 10) {
+    const n = removeRect(selRect);
+    score += n;
+    scoreNum.textContent = score;
+    if (grid.flat().every(c => !c.alive)) { gameActive = false; clearInterval(timerInterval); stopBGM(); setTimeout(showEndOverlay, 300); }
+  }
+  selecting = false; selStart = null; selEnd = null; selRect = null;
+}
+canvas.addEventListener('touchstart', onDown, { passive: false });
+canvas.addEventListener('touchmove', onMove, { passive: false });
+canvas.addEventListener('touchend', onUp, { passive: false });
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+
+// ── Buttons ──────────────────────────────────
+document.getElementById('newBtn').addEventListener('click', newGame);
+document.getElementById('newBtn').addEventListener('touchstart', e => { e.preventDefault(); newGame(); });
+document.getElementById('startBtn').addEventListener('click', newGame);
+document.getElementById('startBtn').addEventListener('touchstart', e => { e.preventDefault(); newGame(); });
+document.getElementById('rankBtn').addEventListener('click', async () => { if (!gameActive) await renderRanking(); });
+
+// ── Draw ──────────────────────────────────
+function lighten(hex, amt) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,Math.round(r+255*amt))},${Math.min(255,Math.round(g+255*amt))},${Math.min(255,Math.round(b+255*amt))})`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0f200f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 격자
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+  for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*CELL); ctx.lineTo(COLS*CELL, r*CELL); ctx.stroke(); }
+  for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c*CELL, 0); ctx.lineTo(c*CELL, ROWS*CELL); ctx.stroke(); }
+
+  // 선택 영역
+  if (selRect) {
+    const ok = sumInRect(selRect) === 10;
+    const sx = selRect.c1*CELL+2, sy = selRect.r1*CELL+2;
+    const sw = (selRect.c2-selRect.c1+1)*CELL-4, sh = (selRect.r2-selRect.r1+1)*CELL-4;
+    ctx.strokeStyle = ok ? '#7dff7d' : 'rgba(255,220,60,0.9)'; ctx.lineWidth = ok ? 3 : 2;
+    ctx.fillStyle = ok ? 'rgba(100,255,100,0.10)' : 'rgba(255,220,60,0.07)';
+    ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, 8); ctx.fill(); ctx.stroke();
+  }
+
+  // 사과
+  const rad = CELL*0.38, fs = Math.max(9, Math.min(CELL*0.36, 20));
+  for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) {
+    const cell = grid[row][col]; if (!cell.alive) continue;
+    const cx = col*CELL+CELL/2, cy = row*CELL+CELL/2;
+    const inSel = selRect && row>=selRect.r1 && row<=selRect.r2 && col>=selRect.c1 && col<=selRect.c2;
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2);
+    ctx.fillStyle = inSel ? lighten('#e03020', 0.28) : '#e03020'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx-rad*0.28, cy-rad*0.28, rad*0.30, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.20)'; ctx.fill();
+    ctx.strokeStyle = '#4a2800'; ctx.lineWidth = Math.max(1, CELL*0.05);
+    ctx.beginPath(); ctx.moveTo(cx, cy-rad); ctx.lineTo(cx+rad*0.2, cy-rad*1.3); ctx.stroke();
+    ctx.font = `bold ${fs}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 3;
+    ctx.fillText(cell.val, cx, cy+rad*0.06); ctx.shadowBlur = 0;
+  }
+
+  // 팝 애니메이션
+  for (let i = pops.length-1; i >= 0; i--) {
+    const p = pops[i];
+    const cx = p.c*CELL+CELL/2, cy = p.r*CELL+CELL/2;
+    ctx.globalAlpha = p.life;
+    ctx.beginPath(); ctx.arc(cx, cy-(1-p.life)*CELL*0.5, rad*(1+(1-p.life)*0.9), 0, Math.PI*2);
+    ctx.fillStyle = '#ff8a80'; ctx.fill();
+    ctx.globalAlpha = 1;
+    p.life -= 0.07; if (p.life < 0) pops.splice(i, 1);
+  }
+
+  // 합계 숫자 — 선택 영역 오른쪽 위에 작게 표시
+  if (selRect) {
+    const s = sumInRect(selRect), ok = s === 10;
+    ctx.font = `bold ${Math.max(11, CELL*0.28)}px Arial`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillStyle = ok ? '#7dff7d' : '#ffcc33';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const tx = Math.min(selRect.c2*CELL+CELL-4, canvas.width-2);
+    const ty = selRect.r1*CELL+4;
+    ctx.fillText(String(s), tx, ty);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function loop() { draw(); if (gameActive || pops.length > 0) requestAnimationFrame(loop); }
+window.addEventListener('resize', () => { if (gameActive) setupCanvas(); });
+
+// Firebase 준비 시 랭킹 로드
+window.addEventListener('firebaseReady', async () => {
+  const rl = document.getElementById('rankList'); if (!rl) return;
+  const list = await window.loadRanking();
+  if (!list.length) { rl.innerHTML = '<li style="color:#666;text-align:center;display:block;padding:8px">기록 없음</li>'; return; }
+  rl.innerHTML = list.map((item, i) => `
+    <li class="rank-item">
+      <span class="rank-pos">${i+1}.</span>
+      <span class="rank-name">${item.name}</span>
+      <span class="rank-score">${item.score}</span>
+    </li>`).join('');
+});
+
+setupCanvas();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
