@@ -118,7 +118,15 @@ window.loadRanking = async () => {
 };
 
 window.firebaseReady = true;
-window.dispatchEvent(new Event('firebaseReady'));
+// 페이지 로드되면 바로 랭킹 불러오기
+window.addEventListener('load', async () => {
+  const rl = document.getElementById('rankList');
+  if (!rl) return;
+  const list = await window.loadRanking();
+  if (!list.length) { rl.innerHTML = '<li style="color:#666;text-align:center;display:block;padding:8px">기록 없음</li>'; return; }
+  rl.innerHTML = list.map((item, i) => `
+    <li class="rank-item"><span class="rank-pos">${i+1}.</span><span class="rank-name">${item.name}</span><span class="rank-score">${item.score}</span></li>`).join('');
+});
 </script>
 
 <script>
