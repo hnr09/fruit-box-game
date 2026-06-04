@@ -42,6 +42,8 @@ canvas{display:block;touch-action:none;}
 .bgm-opt:active{background:rgba(255,255,255,0.1);}
 </style>
 <script src="https://www.google.com/recaptcha/api.js?render=6LeSMwwtAAAAADTC2_krdnSYFJSl40bG2LWyyd0U"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="header">
@@ -107,13 +109,17 @@ window.saveScore = async (name, score) => {
   } catch(e) { console.warn('저장 오류:', e); }
 };
 
-// 랭킹 불러오기 - Vercel API
+// Firebase 직접 읽기 (읽기는 빠르게)
+const _fbApp = firebase.initializeApp({
+  apiKey: "AIzaSyB6-YRt9bJH8PFY9KGbzmXhB3RgPHip_RM",
+  projectId: "applegame-63e6c"
+});
+const _fbDb = firebase.firestore();
+
 window.loadRanking = async () => {
   try {
-    const res = await fetch(VERCEL + '/api/ranking?type=puzzle');
-    const data = await res.json();
-    if (!data.list) return [];
-    return data.list;
+    const snap = await _fbDb.collection('rankings').orderBy('score','desc').limit(10).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch(e) { console.warn('랭킹 오류:', e); return []; }
 };
 
