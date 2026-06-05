@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
   const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -6,7 +6,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://hnr09.github.io');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

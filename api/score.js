@@ -1,8 +1,5 @@
-import crypto from 'crypto';
-import admin from 'firebase-admin';
-
-const SECRET = process.env.TOKEN_SECRET || 'apple-game-secret-2024';
-const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET;
+const crypto = require('crypto');
+const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
   const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -10,6 +7,8 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
+const SECRET = process.env.TOKEN_SECRET || 'apple-game-secret-2024';
+const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET;
 const usedTokens = new Set();
 
 async function verifyRecaptcha(token) {
@@ -38,7 +37,7 @@ function verifyToken(tokenStr, ip) {
   } catch { return null; }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://hnr09.github.io');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -72,11 +71,11 @@ export default async function handler(req, res) {
   setTimeout(() => usedTokens.delete(gameToken), 600000);
 
   try {
-    const collection = gameType === 'puzzle' ? 'rankings' : 'survivor_rankings';
+    const col = gameType === 'puzzle' ? 'rankings' : 'survivor_rankings';
     const data = gameType === 'puzzle'
       ? { name, score, createdAt: new Date() }
       : { name, score: score || 0, time: time || 0, createdAt: new Date() };
-    await db.collection(collection).add(data);
+    await db.collection(col).add(data);
     return res.status(200).json({ ok: true });
   } catch(e) {
     return res.status(500).json({ error: '저장 실패: ' + e.message });
