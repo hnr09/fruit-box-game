@@ -42,8 +42,6 @@ canvas{display:block;touch-action:none;}
 .bgm-opt:active{background:rgba(255,255,255,0.1);}
 </style>
 <script src="https://www.google.com/recaptcha/api.js?render=6LeSMwwtAAAAADTC2_krdnSYFJSl40bG2LWyyd0U"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="header">
@@ -306,6 +304,7 @@ function lighten(hex,amt){
   return `rgb(${Math.min(255,Math.round(r+255*amt))},${Math.min(255,Math.round(g+255*amt))},${Math.min(255,Math.round(b+255*amt))})`;
 }
 function draw(){
+  if(!grid||!grid.length) return;
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#0f200f';ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;
