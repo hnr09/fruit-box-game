@@ -120,7 +120,11 @@ window.loadRanking = async () => {
   try {
     const snap = await _fbDb.collection('rankings').orderBy('score','desc').limit(10).get();
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) { console.warn('랭킹 오류:', e); return []; }
+  } catch(e) {
+    const rl = document.getElementById('rankList');
+    if(rl) rl.innerHTML = '<li style="color:#ff6666;text-align:center;display:block;padding:8px">오류: ' + e.message + '</li>';
+    return [];
+  }
 };
 
 window.firebaseReady = true;
